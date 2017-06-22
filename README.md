@@ -12,3 +12,7 @@ password: `rootpassword`
 
 username: `hare`
 password: `harepassword`
+
+mysql:
+username: `root`
+password: `mysqlpassword`
