@@ -15,7 +15,6 @@
   		<script>
   			function run() {
   				var url = document.getElementById('url').value;
-  				//window.localStorage['url'] = url;
   				player.loadVideoById(url, 0, "large");
   				socket.emit('id', url);
 	        };
@@ -70,14 +69,14 @@
 	    socket.on('play', function(msg){
 	    	console.log("Play received");
 			console.log(msg)
-	  		//player.seekTo(msg, true);
+	  		player.seekTo(msg, true);
 	  		player.playVideo();
 		});
 
 		socket.on('pause', function(msg){
 			console.log("Pause received");
 			console.log(msg);
-	  		//player.seekTo(msg, true);
+	  		player.seekTo(msg, true);
 	  		player.pauseVideo();
 		});
 
