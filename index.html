@@ -8,7 +8,7 @@
     	<script src="/socket.io/socket.io.js"></script>
     	<script src="https://code.jquery.com/jquery-1.11.1.js"></script>
 
-  		YouTube url: <input type="text" id="url">
+  		YouTube ID: <input type="text" id="url">
   		<p><button onclick="run()" type="button">Load Video</button>
   		<br>
 
@@ -17,6 +17,7 @@
   				var url = document.getElementById('url').value;
   				//window.localStorage['url'] = url;
   				player.loadVideoById(url, 0, "large");
+  				socket.emit('id', url);
 	        };
   		</script>
 
@@ -69,16 +70,22 @@
 	    socket.on('play', function(msg){
 	    	console.log("Play received");
 			console.log(msg)
-	  		player.seekTo(msg, true);
+	  		//player.seekTo(msg, true);
 	  		player.playVideo();
 		});
 
 		socket.on('pause', function(msg){
 			console.log("Pause received");
 			console.log(msg);
-	  		player.seekTo(msg, true);
+	  		//player.seekTo(msg, true);
 	  		player.pauseVideo();
 		});
+
+		socket.on('id', function(msg){
+			console.log("YouTube ID received");
+			console.log(msg);
+			player.loadVideoById(msg, 0, "large");
+		})
 
     </script>
     </body> 
