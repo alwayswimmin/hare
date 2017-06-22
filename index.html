@@ -67,11 +67,15 @@
 	    }
 
 	    socket.on('play', function(msg){
+	    	console.log("Play received");
+			console.log(msg)
 	  		player.seekTo(msg, true);
 	  		player.playVideo();
 		});
 
 		socket.on('pause', function(msg){
+			console.log("Pause received");
+			console.log(msg);
 	  		player.seekTo(msg, true);
 	  		player.pauseVideo();
 		});
