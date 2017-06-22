@@ -8,4 +8,4 @@ Our Droplet
 ---
 ip: `104.236.32.255`
 username: `root`
-password: `92899dc501eec6ae8c94885deb`
+password: `rootpassword`
