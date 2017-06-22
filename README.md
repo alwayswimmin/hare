@@ -7,5 +7,9 @@ DigitalOcean Guides
 Our Droplet
 ---
 ip: `104.236.32.255`
+
 username: `root`
 password: `rootpassword`
+
+username: `hare`
+password: `harepassword`
