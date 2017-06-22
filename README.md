@@ -1,7 +1,7 @@
 DigitalOcean Guides
 ---
 - [Initial Server Setup with Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/initial-server-setup-with-ubuntu-16-04)
-- [LAMP Python](https://www.unixmen.com/how-to-install-lamp-stack-on-ubuntu-16-04/)
+- [LAMP Python](https://www.digitalocean.com/community/tutorials/how-to-set-up-an-apache-mysql-and-python-lamp-server-without-frameworks-on-ubuntu-14-04)
 
 Our Droplet
 ---
