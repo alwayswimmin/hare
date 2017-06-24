@@ -21,7 +21,7 @@
   		</script>
 
     	<!-- 1. The <iframe> (and video player) will replace this <div> tag. -->
-	    <div id="player"></div>
+	    <div id="player" onload="onLoad()"></div>
 
 	    <script>
 	     // 2. This code loads the IFrame Player API code asynchronously.
@@ -65,6 +65,10 @@
 	      		socket.emit('pause', player.getCurrentTime());
 	      	}
 	    }
+
+            function onLoad() {
+                socket.emit('onLoad');
+            }
 
 	    socket.on('play', function(msg){
 	    	console.log("Play received");

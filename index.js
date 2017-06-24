@@ -11,6 +11,14 @@ app.get('/', function(req, res){
 });
 
 io.on('connection', function(socket){
+  socket.on('onLoad', function(){
+      socket.emit('id', id);
+      if(is_playing) {
+          socket.emit('play', time_stamp);
+      } else {
+          socket.emit('pause', time_stamp);
+      }
+  });
   socket.on('id', function(msg){
     id = msg;
     console.log('play at ' + time_stamp);
