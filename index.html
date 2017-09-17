@@ -8,20 +8,16 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
 
-    YouTube ID: <input type="text" id="url">
-    <p><button onclick="run()" type="button">Load Video</button>
+    Room ID: <input type="text" id="room">
+    <button onclick="loadRoom()" type="button">Load Room</button>
     <br>
 
-    <script>
-function run() {
-  var url = document.getElementById('url').value;
-  player.loadVideoById(url, 0, "large");
-  socket.emit('id', url);
-};
-    </script>
+    YouTube ID: <input type="text" id="video-id">
+    <button onclick="loadVideo()" type="button">Load Video</button>
+    <br>
 
     <!-- 1. The <iframe> (and video player) will replace this <div> tag. -->
-    <div id="player" onload="onLoad()"></div>
+    <div id="player"></div>
 
     <script>
 // 2. This code loads the IFrame Player API code asynchronously.
@@ -54,6 +50,20 @@ function onPlayerReady(event) {
 var threshold = 0.5;
 var socket = io();
 
+var room;
+var videoId;
+
+function loadRoom() {
+  room = document.getElementById('room').value;
+  socket.emit('join', room);
+};
+
+function loadVideo() {
+  videoId = document.getElementById('video-id').value;
+  player.loadVideoById(videoId, 0, "large");
+  socket.emit('id', videoId);
+};
+
 function onStateChange(event) {
   if (event.data == YT.PlayerState.PLAYING) {
     console.log("Playing");
@@ -65,10 +75,6 @@ function onStateChange(event) {
     console.log(player.getCurrentTime());
     socket.emit('pause', player.getCurrentTime());
   }
-}
-
-function onLoad() {
-  socket.emit('onLoad');
 }
 
 function seek(time) {
@@ -96,6 +102,8 @@ socket.on('id', function(msg){
   console.log("YouTube ID received");
   console.log(msg);
   player.loadVideoById(msg, 0, "large");
+  videoId = msg;
+  document.getElementById('video-id').value = videoId;
 })
 
     </script>
