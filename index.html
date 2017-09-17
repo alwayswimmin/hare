@@ -1,95 +1,103 @@
 <html> 
-    <head> 
-        This Is Hare
-        <br>
-    </head> 
-    <body> 
+  <head> 
+    This is Hare
+    <br>
+  </head> 
+  <body> 
 
-    	<script src="/socket.io/socket.io.js"></script>
-    	<script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
 
-  		YouTube ID: <input type="text" id="url">
-  		<p><button onclick="run()" type="button">Load Video</button>
-  		<br>
+    YouTube ID: <input type="text" id="url">
+    <p><button onclick="run()" type="button">Load Video</button>
+    <br>
 
-  		<script>
-  			function run() {
-  				var url = document.getElementById('url').value;
-  				player.loadVideoById(url, 0, "large");
-  				socket.emit('id', url);
-	        };
-  		</script>
+    <script>
+function run() {
+  var url = document.getElementById('url').value;
+  player.loadVideoById(url, 0, "large");
+  socket.emit('id', url);
+};
+    </script>
 
-    	<!-- 1. The <iframe> (and video player) will replace this <div> tag. -->
-	    <div id="player" onload="onLoad()"></div>
+    <!-- 1. The <iframe> (and video player) will replace this <div> tag. -->
+    <div id="player" onload="onLoad()"></div>
 
-	    <script>
-	     // 2. This code loads the IFrame Player API code asynchronously.
-	     var tag = document.createElement('script');
+    <script>
+// 2. This code loads the IFrame Player API code asynchronously.
+var tag = document.createElement('script');
 
-	     tag.src = "https://www.youtube.com/iframe_api";
-	     var firstScriptTag = document.getElementsByTagName('script')[0];
-	     firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+tag.src = "https://www.youtube.com/iframe_api";
+var firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-	     // 3. This function creates an <iframe> (and YouTube player)
-	     //    after the API code downloads.
-	     var player;
-	     function onYouTubeIframeAPIReady() {
-	        player = new YT.Player('player', {
-	          height: '390',
-	          width: '640',
-	          videoId: window.localStorage['url'],
-	          events: {
-	            'onReady': onPlayerReady,
-	            'onStateChange': onStateChange,
-	          }
-	        });
-	     }
+// 3. This function creates an <iframe> (and YouTube player)
+//    after the API code downloads.
+var player;
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player('player', {
+    height: '390',
+    width: '640',
+    videoId: window.localStorage['url'],
+    events: {
+      'onReady': onPlayerReady,
+      'onStateChange': onStateChange,
+    }
+  });
+}
 
-	     // 4. The API will call this function when the video player is ready.
-	     function onPlayerReady(event) {
-	        event.target.playVideo();
-	     }
+// 4. The API will call this function when the video player is ready.
+function onPlayerReady(event) {
+  event.target.playVideo();
+}
 
-	     var socket = io();
+var threshold = 0.5;
+var socket = io();
 
-	     function onStateChange(event) {
-	      	if (event.data == YT.PlayerState.PLAYING) {
-	      		console.log("Playing");
-	      		console.log(player.getCurrentTime());
-	      		socket.emit('play', player.getCurrentTime());
-	      	}
-	      	else if (event.data == YT.PlayerState.PAUSED) {
-	      		console.log("Paused");
-	      		console.log(player.getCurrentTime());
-	      		socket.emit('pause', player.getCurrentTime());
-	      	}
-	    }
+function onStateChange(event) {
+  if (event.data == YT.PlayerState.PLAYING) {
+    console.log("Playing");
+    console.log(player.getCurrentTime());
+    socket.emit('play', player.getCurrentTime());
+  }
+  else if (event.data == YT.PlayerState.PAUSED) {
+    console.log("Paused");
+    console.log(player.getCurrentTime());
+    socket.emit('pause', player.getCurrentTime());
+  }
+}
 
-            function onLoad() {
-                socket.emit('onLoad');
-            }
+function onLoad() {
+  socket.emit('onLoad');
+}
 
-	    socket.on('play', function(msg){
-	    	console.log("Play received");
-			console.log(msg)
-	  		player.seekTo(msg, true);
-	  		player.playVideo();
-		});
+function seek(time) {
+  var currentTime = player.getCurrentTime();
+  if(Math.abs(currentTime - time) > threshold) {
+    player.seekTo(time, true);
+  }
+}
 
-		socket.on('pause', function(msg){
-			console.log("Pause received");
-			console.log(msg);
-	  		player.seekTo(msg, true);
-	  		player.pauseVideo();
-		});
+socket.on('play', function(msg){
+  console.log("Play received");
+  console.log(msg);
+  seek(msg);
+  player.playVideo();
+});
 
-		socket.on('id', function(msg){
-			console.log("YouTube ID received");
-			console.log(msg);
-			player.loadVideoById(msg, 0, "large");
-		})
+socket.on('pause', function(msg){
+  console.log("Pause received");
+  console.log(msg);
+  seek(msg);
+  player.pauseVideo();
+});
+
+socket.on('id', function(msg){
+  console.log("YouTube ID received");
+  console.log(msg);
+  player.loadVideoById(msg, 0, "large");
+})
 
     </script>
-    </body> 
+  </body> 
 </html>
