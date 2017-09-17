@@ -101,8 +101,9 @@ socket.on('pause', function(msg){
 socket.on('id', function(msg){
   console.log("YouTube ID received");
   console.log(msg);
-  player.loadVideoById(msg, 0, "large");
-  videoId = msg;
+  videoId = msg['videoId'];
+  videoTime = msg['videoTime'];
+  player.loadVideoById(videoId, videoTime, "large");
   document.getElementById('video-id').value = videoId;
 })
 
