@@ -1,6 +1,6 @@
-Hare
+hare
 ===
-Watch videos together
+watch videos together
 
 174.138.85.65
 shsiang:shsiangpalisade
