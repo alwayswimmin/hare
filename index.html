@@ -52,6 +52,7 @@ var socket = io();
 
 var room;
 var videoId;
+var broadcastNextChange = true;
 
 function loadRoom() {
   room = document.getElementById('room').value;
@@ -65,6 +66,11 @@ function loadVideo() {
 };
 
 function onStateChange(event) {
+  console.log(broadcastNextChange);
+  if (!broadcastNextChange) {
+    broadcastNextChange = true;
+    return;
+  }
   if (event.data == YT.PlayerState.PLAYING) {
     console.log("Playing");
     console.log(player.getCurrentTime());
@@ -80,6 +86,7 @@ function onStateChange(event) {
 function seek(time) {
   var currentTime = player.getCurrentTime();
   if(Math.abs(currentTime - time) > threshold) {
+    broadcastNextChange = false;
     player.seekTo(time, true);
   }
 }
@@ -87,14 +94,18 @@ function seek(time) {
 socket.on('play', function(msg){
   console.log("Play received");
   console.log(msg);
+  broadcastNextChange = false;
   seek(msg);
+  broadcastNextChange = false;
   player.playVideo();
 });
 
 socket.on('pause', function(msg){
   console.log("Pause received");
   console.log(msg);
+  broadcastNextChange = false;
   seek(msg);
+  broadcastNextChange = false;
   player.pauseVideo();
 });
 

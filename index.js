@@ -20,6 +20,7 @@ function calculateTime(room) {
 }
 
 io.on('connection', function(socket){
+  console.log(socket.id);
 	var room = "";
 	var threshold = 0.5;
 	socket.on('join', function(msg){
