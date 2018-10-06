@@ -11,6 +11,7 @@ var videoId = new Array();
 var state = new Array();
 var videoTime = new Array();
 var timeStamp = new Array();
+var playbackRate = new Array();
 
 function calculateTime(room) {
 	var d = new Date();
@@ -33,6 +34,9 @@ io.on('connection', function(socket){
 		} else {
 			socket.emit('pause', calculateTime(room));
 		}
+    if (playbackRate[room]) {
+      socket.emit('rate', playbackRate[room]);
+    }
 	});
 	socket.on('id', function(msg){
 		videoId[room] = msg;
@@ -67,6 +71,11 @@ io.on('connection', function(socket){
 			console.log('move to ' + videoTime[room]);
 			socket.broadcast.to(room).emit('move', videoTime[room]);
 		}
+	});
+	socket.on('rate', function(msg){
+    playbackRate[room] = msg;
+		console.log('playback rate ' + playbackRate[room]);
+		socket.broadcast.to(room).emit('rate', playbackRate[room]);
 	});
 });
 

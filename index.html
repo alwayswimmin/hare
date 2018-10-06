@@ -38,6 +38,7 @@ function onYouTubeIframeAPIReady() {
     events: {
       'onReady': onPlayerReady,
       'onStateChange': onStateChange,
+      'onPlaybackRateChange': onPlaybackRateChange,
     }
   });
 }
@@ -52,7 +53,8 @@ var socket = io();
 
 var room;
 var videoId;
-var broadcastNextChange = true;
+var broadcastNextStateChange = true;
+var broadcastNextPlaybackRateChange = true;
 
 function loadRoom() {
   room = document.getElementById('room').value;
@@ -66,9 +68,9 @@ function loadVideo() {
 };
 
 function onStateChange(event) {
-  console.log(broadcastNextChange);
-  if (!broadcastNextChange) {
-    broadcastNextChange = true;
+  console.log(broadcastNextStateChange);
+  if (!broadcastNextStateChange) {
+    broadcastNextStateChange = true;
     return;
   }
   if (event.data == YT.PlayerState.PLAYING) {
@@ -83,10 +85,19 @@ function onStateChange(event) {
   }
 }
 
+function onPlaybackRateChange(event) {
+  if (!broadcastNextPlaybackRateChange) {
+    broadcastNextPlaybackRateChange = true;
+    return;
+  }
+  console.log("Setting rate to " + event.data);
+  socket.emit('rate', player.getPlaybackRate());
+}
+
 function seek(time) {
   var currentTime = player.getCurrentTime();
   if(Math.abs(currentTime - time) > threshold) {
-    broadcastNextChange = false;
+    broadcastNextStateChange = false;
     player.seekTo(time, true);
   }
 }
@@ -94,19 +105,26 @@ function seek(time) {
 socket.on('play', function(msg){
   console.log("Play received");
   console.log(msg);
-  broadcastNextChange = false;
+  broadcastNextStateChange = false;
   seek(msg);
-  broadcastNextChange = false;
+  broadcastNextStateChange = false;
   player.playVideo();
 });
 
 socket.on('pause', function(msg){
   console.log("Pause received");
   console.log(msg);
-  broadcastNextChange = false;
+  broadcastNextStateChange = false;
   seek(msg);
-  broadcastNextChange = false;
+  broadcastNextStateChange = false;
   player.pauseVideo();
+});
+
+socket.on('rate', function(msg){
+  console.log("Playback rate received");
+  console.log(msg);
+  broadcastNextPlaybackRateChange = false;
+  player.setPlaybackRate(msg);
 });
 
 socket.on('id', function(msg){
@@ -116,7 +134,7 @@ socket.on('id', function(msg){
   videoTime = msg['videoTime'];
   player.loadVideoById(videoId, videoTime, "large");
   document.getElementById('video-id').value = videoId;
-})
+});
 
     </script>
   </body> 
