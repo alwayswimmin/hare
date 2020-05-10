@@ -1,18 +1,18 @@
-<html> 
-  <head> 
+<html>
+
+<head>
     This is Hare
     <br>
-  </head> 
-  <body> 
+</head>
+
+<body>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
 
     Room ID: <input type="text" id="room">
     <button onclick="loadRoom()" type="button">Load Room</button>
-    <br>
-
-    YouTube ID: <input type="text" id="video-id">
+    <br> YouTube ID: <input type="text" id="video-id">
     <button onclick="loadVideo()" type="button">Load Video</button>
     <br>
 
@@ -20,122 +20,119 @@
     <div id="player"></div>
 
     <script>
-// 2. This code loads the IFrame Player API code asynchronously.
-var tag = document.createElement('script');
+        // 2. This code loads the IFrame Player API code asynchronously.
+        var tag = document.createElement('script');
 
-tag.src = "https://www.youtube.com/iframe_api";
-var firstScriptTag = document.getElementsByTagName('script')[0];
-firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-// 3. This function creates an <iframe> (and YouTube player)
-//    after the API code downloads.
-var player;
-function onYouTubeIframeAPIReady() {
-  player = new YT.Player('player', {
-    height: '390',
-    width: '640',
-    videoId: window.localStorage['url'],
-    events: {
-      'onReady': onPlayerReady,
-      'onStateChange': onStateChange,
-      'onPlaybackRateChange': onPlaybackRateChange,
-    }
-  });
-}
+        // 3. This function creates an <iframe> (and YouTube player)
+        //    after the API code downloads.
+        var player;
 
-// 4. The API will call this function when the video player is ready.
-function onPlayerReady(event) {
-  event.target.playVideo();
-}
+        function onYouTubeIframeAPIReady()
+        {
+            player = new YT.Player('player',
+            {
+                height: '390',
+                width: '640',
+                videoId: window.localStorage['url'],
+                events:
+                {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onStateChange,
+                    'onPlaybackRateChange': onPlaybackRateChange,
+                }
+            });
+        }
 
-var threshold = 0.5;
-var socket = io();
+        // 4. The API will call this function when the video player is ready.
+        function onPlayerReady(event)
+        {
+            event.target.playVideo();
+        }
 
-var room;
-var videoId;
-var broadcastNextStateChange = true;
-var broadcastNextPlaybackRateChange = true;
+        var threshold = 0.5;
+        var socket = io();
 
-function loadRoom() {
-  room = document.getElementById('room').value;
-  socket.emit('join', room);
-};
+        var room;
+        var videoId;
 
-function loadVideo() {
-  videoId = document.getElementById('video-id').value;
-  player.loadVideoById(videoId, 0, "large");
-  socket.emit('id', videoId);
-};
+        function loadRoom()
+        {
+            room = document.getElementById('room').value;
+            socket.emit('join', room);
+        };
 
-function onStateChange(event) {
-  console.log(broadcastNextStateChange);
-  if (!broadcastNextStateChange) {
-    broadcastNextStateChange = true;
-    return;
-  }
-  if (event.data == YT.PlayerState.PLAYING) {
-    console.log("Playing");
-    console.log(player.getCurrentTime());
-    socket.emit('play', player.getCurrentTime());
-  }
-  else if (event.data == YT.PlayerState.PAUSED) {
-    console.log("Paused");
-    console.log(player.getCurrentTime());
-    socket.emit('pause', player.getCurrentTime());
-  }
-}
+        function loadVideo()
+        {
+            videoId = document.getElementById('video-id').value;
+            player.loadVideoById(videoId, 0, "large");
+            socket.emit('id', videoId);
+        };
 
-function onPlaybackRateChange(event) {
-  if (!broadcastNextPlaybackRateChange) {
-    broadcastNextPlaybackRateChange = true;
-    return;
-  }
-  console.log("Setting rate to " + event.data);
-  socket.emit('rate', player.getPlaybackRate());
-}
+        function onStateChange(event)
+        {
+            if (event.data == YT.PlayerState.PLAYING)
+            {
+                console.log("Playing");
+                console.log(player.getCurrentTime());
+                socket.emit('play', player.getCurrentTime());
+            }
+            else if (event.data == YT.PlayerState.PAUSED)
+            {
+                console.log("Paused");
+                console.log(player.getCurrentTime());
+                socket.emit('pause', player.getCurrentTime());
+            }
+        }
 
-function seek(time) {
-  var currentTime = player.getCurrentTime();
-  if(Math.abs(currentTime - time) > threshold) {
-    broadcastNextStateChange = false;
-    player.seekTo(time, true);
-  }
-}
+        function onPlaybackRateChange(event)
+        {
+            console.log("Setting rate to " + event.data);
+            socket.emit('rate', player.getPlaybackRate());
+        }
 
-socket.on('play', function(msg){
-  console.log("Play received");
-  console.log(msg);
-  broadcastNextStateChange = false;
-  seek(msg);
-  broadcastNextStateChange = false;
-  player.playVideo();
-});
+        function seek(time)
+        {
+            var currentTime = player.getCurrentTime();
+            player.seekTo(time, true);
+        }
 
-socket.on('pause', function(msg){
-  console.log("Pause received");
-  console.log(msg);
-  broadcastNextStateChange = false;
-  seek(msg);
-  broadcastNextStateChange = false;
-  player.pauseVideo();
-});
+        socket.on('play', function(msg)
+        {
+            console.log("Play received");
+            console.log(msg);
+            seek(msg['videoTime']);
+            player.playVideo();
+        });
 
-socket.on('rate', function(msg){
-  console.log("Playback rate received");
-  console.log(msg);
-  broadcastNextPlaybackRateChange = false;
-  player.setPlaybackRate(msg);
-});
+        socket.on('pause', function(msg)
+        {
+            console.log("Pause received");
+            console.log(msg);
+            seek(msg['videoTime']);
+            player.pauseVideo();
+        });
 
-socket.on('id', function(msg){
-  console.log("YouTube ID received");
-  console.log(msg);
-  videoId = msg['videoId'];
-  videoTime = msg['videoTime'];
-  player.loadVideoById(videoId, videoTime, "large");
-  document.getElementById('video-id').value = videoId;
-});
+        socket.on('rate', function(msg)
+        {
+            console.log("Playback rate received");
+            console.log(msg);
+            player.setPlaybackRate(msg['playbackRate']);
+        });
 
+        socket.on('id', function(msg)
+        {
+            console.log("YouTube ID received");
+            console.log(msg);
+            videoId = msg['videoId'];
+            videoTime = msg['videoTime'];
+            player.loadVideoById(videoId, videoTime, "large");
+            document.getElementById('video-id').value = videoId;
+        });
     </script>
-  </body> 
+</body>
+
 </html>
