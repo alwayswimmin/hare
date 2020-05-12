@@ -1,0 +1,167 @@
+<html>
+
+<head>
+    <title>Hare | {{ roomId }}</title>
+</head>
+
+<body>
+
+    <h1>Hare | {{ roomId }}</h1>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+
+    YouTube URL: <input type="text" id="video-url">
+    <button onclick="loadVideo()" type="button">Load Video</button>
+    <br>
+
+    <!-- 1. The <iframe> (and video player) will replace this <div> tag. -->
+    <div id="player"></div>
+
+    <script>
+        // 2. This code loads the IFrame Player API code asynchronously.
+        var tag = document.createElement('script');
+
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        // 3. This function creates an <iframe> (and YouTube player)
+        //    after the API code downloads.
+        var player;
+
+        function onYouTubeIframeAPIReady()
+        {
+            player = new YT.Player('player',
+            {
+                height: '390',
+                width: '640',
+                videoId: window.localStorage['url'],
+                events:
+                {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onStateChange,
+                    'onPlaybackRateChange': onStateChange
+                }
+            });
+        }
+
+        var socket = io();
+
+        var room = "{{ roomId }}";
+        var stateSnapshot = {
+            'snapshotTime': new Date(),
+            'state': null
+        };
+
+        function getVideoId(urlString)
+        {
+            const url = new URL(urlString);
+            return url.searchParams.get('v');
+        }
+
+        function snapshotState()
+        {
+            const state = {
+                'videoId': getVideoId(player.getVideoUrl()),
+                'playerState': player.getPlayerState(),
+                'playbackRate': player.getPlaybackRate(),
+                'currentTime': player.getCurrentTime(),
+            };
+            return {
+                'snapshotTime': new Date(),
+                'state': state
+            };
+        }
+
+        // Returns whether the two snapshots are considered to encode
+        // equivalent current states.
+        function snapshotsEqual(lhs, rhs)
+        {
+            if (!lhs.state || !rhs.state) return false;
+            if (lhs.state.videoId != rhs.state.videoId) return false;
+            if (lhs.state.playerState != rhs.state.playerState) return false;
+            if (lhs.state.playbackRate != rhs.state.playbackRate) return false;
+
+            const snapshotOffset = (rhs.snapshotTime.getTime() -
+                lhs.snapshotTime.getTime()) / 1000.0;
+            const timeAdjustment = snapshotOffset *
+                (lhs.state.playerState == 1 ? lhs.state.playbackRate : 0.0);
+            const timeDiff = (lhs.state.currentTime - rhs.state.currentTime) +
+                timeAdjustment;
+            const kTimeDiffThreshold = 1.0;
+            if (Math.abs(timeDiff) > kTimeDiffThreshold) return false;
+
+            return true;
+        }
+
+        // Loads the specified state into the player.
+        function loadState(newState)
+        {
+            if (!newState) return;
+            stateSnapshot = {
+                'snapshotTime': new Date(),
+                'state': newState
+            };
+            if (getVideoId(player.getVideoUrl()) != newState.videoId)
+            {
+                console.log('loadVideoById ' + newState.videoId)
+                player.loadVideoById(newState.videoId);
+            }
+            if (player.getPlaybackRate() != newState.playbackRate)
+            {
+                console.log('setPlaybackRate ' + newState.playbackRate)
+                player.setPlaybackRate(newState.playbackRate);
+            }
+            if (player.getPlayerState() != newState.playerState)
+            {
+                if (newState.playerState == 1)
+                {
+                    console.log('playVideo');
+                    player.playVideo();
+                }
+                else if (newState.playerState == 2)
+                {
+                    console.log('pauseVideo');
+                    player.pauseVideo();
+                }
+            }
+            console.log('seekTo ' + newState.currentTime);
+            player.seekTo(newState.currentTime, true);
+        }
+
+        function loadVideo()
+        {
+            const videoUrl = document.getElementById('video-url').value;
+            const videoId = getVideoId(videoUrl);
+            player.loadVideoById(videoId);
+        }
+
+        function onStateChange()
+        {
+            const newStateSnapshot = snapshotState();
+          const playerState = newStateSnapshot.state.playerState;
+            if (playerState != 1 && playerState != 2) return;
+            if (snapshotsEqual(stateSnapshot, newStateSnapshot)) return;
+            stateSnapshot = newStateSnapshot;
+            console.log("Sending state to server:");
+            console.log(stateSnapshot.state);
+            socket.emit('stateUpdate', stateSnapshot.state);
+        }
+
+        socket.on('stateUpdate', function(msg)
+        {
+            console.log("State received from server:");
+            console.log(msg);
+            loadState(msg);
+        });
+
+        // 4. The API will call this function when the video player is ready.
+        function onPlayerReady(event)
+        {
+            socket.emit('join', room);
+        }
+    </script>
+</body>
+
+</html>
