@@ -62,9 +62,10 @@
         var room = "{{ roomId }}";
 
         // The last received state from the server or sent to the server. 
-        // If our current state is // similar to this, don't send state to the
+        // If our current state is similar to this, don't send state to the 
         // server.
         var lastSharedState;
+        var lastSharedStateTimestamp;
 
         function getVideoId(urlString)
         {
@@ -89,10 +90,24 @@
             if (lhs.videoId != rhs.videoId) return false;
             if (lhs.playbackRate != rhs.playbackRate) return false;
             if (lhs.playerState != rhs.playerState) return false;
-            const kTimeDiffThreshold = 1.0;
-            if (Math.abs(lhs - rhs.currentTime) > kTimeDiffThreshold)
+            const kTimeDiffThreshold = 3.0;
+            if (Math.abs(lhs.currentTime - rhs.currentTime) >
+                kTimeDiffThreshold)
                 return false;
             return true;
+        }
+
+        function getAdjustedState(state, stateTimestamp)
+        {
+            if (!state || state.playerState != 1) return state;
+            const offset = state.playbackRate * ((new Date()).getTime() -
+                stateTimestamp.getTime()) / 1000.0;
+            return {
+                'videoId': state.videoId,
+                'playerState': state.playerState,
+                'playbackRate': state.playbackRate,
+                'currentTime': state.currentTime + offset
+            };
         }
 
         // Loads the specified state into the player.
@@ -102,14 +117,14 @@
             if (getVideoId(player.getVideoUrl()) != newState.videoId)
             {
                 console.log('loadVideoById ' + newState.videoId)
-                player.loadVideoById(newState.videoId);
+                player.loadVideoById(newState.videoId, newState.currentTime);
             }
             if (player.getPlaybackRate() != newState.playbackRate)
             {
                 console.log('setPlaybackRate ' + newState.playbackRate)
                 player.setPlaybackRate(newState.playbackRate);
             }
-            const kTimeDiffThreshold = 1.0;
+            const kTimeDiffThreshold = 3.0;
             if (Math.abs(player.getCurrentTime() - newState.currentTime) >
                 kTimeDiffThreshold)
             {
@@ -143,8 +158,10 @@
             const newState = state();
             const playerState = newState.playerState;
             if (playerState != 1 && playerState != 2) return;
-            if (stateEquals(lastSharedState, newState)) return;
+            if (stateEquals(getAdjustedState(lastSharedState,
+                    lastSharedStateTimestamp), newState)) return;
             lastSharedState = newState;
+            lastSharedStateTimestamp = new Date();
             console.log("Sending state to server:");
             console.log(newState);
             socket.emit('stateUpdate', newState);
@@ -155,6 +172,7 @@
             console.log("State received from server:");
             console.log(msg);
             lastSharedState = msg;
+            lastSharedStateTimestamp = new Date();
             loadState(lastSharedState);
         });
 

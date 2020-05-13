@@ -53,6 +53,7 @@ function getValues(map) {
 io.on('connection', function(socket) {
     console.log(socket.id);
     var room;
+    var heartbeat;
     socket.on('join', function(msg) {
         console.log(socket.id + ' join:');
         console.log(msg);
@@ -66,9 +67,13 @@ io.on('connection', function(socket) {
         }
         roomNames.set(socket.id, 'Anonymous');
         io.to(room).emit('namesUpdate', getValues(roomNames));
+        heartbeat = setInterval(() => {
+            socket.emit('stateUpdate', getAdjustedState(room));
+        }, 5000);
     });
     socket.on('disconnect', () => {
         console.log(socket.id + ' disconnect');
+        clearInterval(heartbeat);
         var roomNames = names.get(room);
         if (roomNames) {
             roomNames.delete(socket.id);
