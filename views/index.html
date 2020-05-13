@@ -61,6 +61,11 @@
 
         var room = "{{ roomId }}";
 
+        // The last received state from the server or sent to the server. 
+        // If our current state is // similar to this, don't send state to the
+        // server.
+        var lastSharedState;
+
         function getVideoId(urlString)
         {
             const url = new URL(urlString);
@@ -77,6 +82,19 @@
             };
         }
 
+        function stateEquals(lhs, rhs)
+        {
+            if (!lhs && !rhs) return true;
+            if (!lhs || !rhs) return false;
+            if (lhs.videoId != rhs.videoId) return false;
+            if (lhs.playbackRate != rhs.playbackRate) return false;
+            if (lhs.playerState != rhs.playerState) return false;
+            const kTimeDiffThreshold = 1.0;
+            if (Math.abs(lhs - rhs.currentTime) > kTimeDiffThreshold)
+                return false;
+            return true;
+        }
+
         // Loads the specified state into the player.
         function loadState(newState)
         {
@@ -91,6 +109,13 @@
                 console.log('setPlaybackRate ' + newState.playbackRate)
                 player.setPlaybackRate(newState.playbackRate);
             }
+            const kTimeDiffThreshold = 1.0;
+            if (Math.abs(player.getCurrentTime() - newState.currentTime) >
+                kTimeDiffThreshold)
+            {
+                console.log('seekTo ' + newState.currentTime);
+                player.seekTo(newState.currentTime, true);
+            }
             if (player.getPlayerState() != newState.playerState)
             {
                 if (newState.playerState == 1)
@@ -103,13 +128,6 @@
                     console.log('pauseVideo');
                     player.pauseVideo();
                 }
-            }
-            const kTimeDiffThreshold = 1.0;
-            if (Math.abs(player.getCurrentTime() - newState.currentTime) >
-                kTimeDiffThreshold)
-            {
-                console.log('seekTo ' + newState.currentTime);
-                player.seekTo(newState.currentTime, true);
             }
         }
 
@@ -125,6 +143,8 @@
             const newState = state();
             const playerState = newState.playerState;
             if (playerState != 1 && playerState != 2) return;
+            if (stateEquals(lastSharedState, newState)) return;
+            lastSharedState = newState;
             console.log("Sending state to server:");
             console.log(newState);
             socket.emit('stateUpdate', newState);
@@ -134,7 +154,8 @@
         {
             console.log("State received from server:");
             console.log(msg);
-            loadState(msg);
+            lastSharedState = msg;
+            loadState(lastSharedState);
         });
 
         socket.on('namesUpdate', function(msg)

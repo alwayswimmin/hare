@@ -52,6 +52,7 @@ function getValues(map) {
 
 io.on('connection', function(socket) {
     console.log(socket.id);
+    var room;
     socket.on('join', function(msg) {
         console.log(socket.id + ' join:');
         console.log(msg);
@@ -65,6 +66,14 @@ io.on('connection', function(socket) {
         }
         roomNames.set(socket.id, 'Anonymous');
         io.to(room).emit('namesUpdate', getValues(roomNames));
+    });
+    socket.on('disconnect', () => {
+        console.log(socket.id + ' disconnect');
+        var roomNames = names.get(room);
+        if (roomNames) {
+            roomNames.delete(socket.id);
+            io.to(room).emit('namesUpdate', getValues(names.get(room)));
+        }
     });
     socket.on('stateUpdate', function(msg) {
         console.log(socket.id + ' stateUpdate:');
