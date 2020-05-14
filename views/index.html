@@ -1,33 +1,100 @@
+<!doctype html>
 <html>
 
 <head>
     <title>Hare | {{ roomId }}</title>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"
+        integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk"
+        crossorigin="anonymous">
+
+    <style>
+        .bd-placeholder-img {
+            font-size: 1.125rem;
+            text-anchor: middle;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        @media (min-width: 768px) {
+            .bd-placeholder-img-lg {
+                font-size: 3.5rem;
+            }
+        }
+    </style>
+
+    <style>
+        /* Show it is fixed to the top */
+
+        body {
+            min-height: 75rem;
+            padding-top: 4.5rem;
+        }
+    </style>
 </head>
 
 <body>
-
-    <h1>Hare | {{ roomId }}</h1>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+        integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+        crossorigin="anonymous"></script>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
 
-    Name: <input type="text" id="name">
-    <button onclick="updateName()" type="button">Update Name</button>
-    <br> YouTube URL: <input type="text" id="video-url">
-    <button onclick="loadVideo()" type="button">Load Video</button>
-    <br>
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+        <a class="navbar-brand" href="#">Hare</a>
+        <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item active">
+                    <a class="nav-link" href="#">{{ roomId }} <span class="sr-only">(current)</span></a>
+                </li>
+            </ul>
+        </div>
+    </nav>
 
-    <!-- 1. The <iframe> (and video player) will replace this <div> tag. -->
-    <div id="player"></div>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-auto">
+                <!-- 1. The <iframe> (and video player) will replace this <div> tag. -->
+                <div id="player"></div>
+            </div>
+        </div>
 
-    <table id="names">
-        <thead>
-            <tr>
-                <th>Name</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
+        <div class="row justify-content-center">
+            <div class="col-auto">
+                <form class="form-inline" onsubmit="loadVideo(); return false;">
+                    <input class="form-control mr-sm-2" type="text" id="video-url" placeholder="Video URL" aria-label="Video URL">
+                    <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Load</button>
+                </form>
+            </div>
+
+            <div class="col-auto">
+                <form class="form-inline" onsubmit="updateName(); return false;">
+                    <input class="form-control mr-sm-2" type="text" id="name" placeholder="Name" aria-label="Name">
+                    <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Update</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-auto">
+                <table class="table table-responsive" id="names">
+                    <thead>
+                        <tr>
+                            <th>Room Members</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
     <script>
         // 2. This code loads the IFrame Player API code asynchronously.
