@@ -1,0 +1,279 @@
+<!doctype html>
+<html>
+
+<head>
+    <title>hare | {{ roomId }}</title>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"
+        integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk"
+        crossorigin="anonymous">
+
+    <style>
+        .bd-placeholder-img {
+            font-size: 1.125rem;
+            text-anchor: middle;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        @media (min-width: 768px) {
+            .bd-placeholder-img-lg {
+                font-size: 3.5rem;
+            }
+        }
+    </style>
+
+    <style>
+        /* Show it is fixed to the top */
+
+        body {
+            min-height: 75rem;
+            padding-top: 4.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+        integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+        crossorigin="anonymous"></script>
+
+    <script src="/socket.io/socket.io.js"></script>
+
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+        <a class="navbar-brand" href="/">hare</a>
+        <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item active">
+                    <a class="nav-link" href="#">{{ roomId }} <span class="sr-only">(current)</span></a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-auto">
+                <!-- 1. The <iframe> (and video player) will replace this <div> tag. -->
+                <div id="player"></div>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-auto">
+                <form class="form-inline" onsubmit="loadVideo(); return false;">
+                    <input class="form-control mr-sm-2" type="text" id="video-url" placeholder="Video URL" aria-label="Video URL">
+                    <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Load</button>
+                </form>
+            </div>
+
+            <div class="col-auto">
+                <form class="form-inline" onsubmit="updateName(); return false;">
+                    <input class="form-control mr-sm-2" type="text" id="name" placeholder="Name" aria-label="Name">
+                    <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Update</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-auto">
+                <table class="table table-responsive" id="names">
+                    <thead>
+                        <tr>
+                            <th>Room Members</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 2. This code loads the IFrame Player API code asynchronously.
+        var tag = document.createElement('script');
+
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        // 3. This function creates an <iframe> (and YouTube player)
+        //    after the API code downloads.
+        var player;
+
+        function onYouTubeIframeAPIReady()
+        {
+            player = new YT.Player('player',
+            {
+                height: '390',
+                width: '640',
+                videoId: window.localStorage['url'],
+                events:
+                {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onStateChange,
+                    'onPlaybackRateChange': onStateChange
+                }
+            });
+        }
+
+        var socket = io();
+
+        var room = "{{ roomId }}";
+
+        // The last received state from the server or sent to the server. 
+        // If our current state is similar to this, don't send state to the 
+        // server.
+        var lastSharedState;
+        var lastSharedStateTimestamp;
+
+        function getVideoId(urlString)
+        {
+            const url = new URL(urlString);
+            return url.searchParams.get('v');
+        }
+
+        function state()
+        {
+            return {
+                'videoId': getVideoId(player.getVideoUrl()),
+                'playerState': player.getPlayerState(),
+                'playbackRate': player.getPlaybackRate(),
+                'currentTime': player.getCurrentTime(),
+            };
+        }
+
+        function stateEquals(lhs, rhs)
+        {
+            if (!lhs && !rhs) return true;
+            if (!lhs || !rhs) return false;
+            if (lhs.videoId != rhs.videoId) return false;
+            if (lhs.playbackRate != rhs.playbackRate) return false;
+            if (lhs.playerState != rhs.playerState) return false;
+            const kTimeDiffThreshold = 3.0;
+            if (Math.abs(lhs.currentTime - rhs.currentTime) >
+                kTimeDiffThreshold)
+                return false;
+            return true;
+        }
+
+        function getAdjustedState(state, stateTimestamp)
+        {
+            if (!state || state.playerState != 1) return state;
+            const offset = state.playbackRate * ((new Date()).getTime() -
+                stateTimestamp.getTime()) / 1000.0;
+            return {
+                'videoId': state.videoId,
+                'playerState': state.playerState,
+                'playbackRate': state.playbackRate,
+                'currentTime': state.currentTime + offset
+            };
+        }
+
+        // Loads the specified state into the player.
+        function loadState(newState)
+        {
+            if (!newState) return;
+            if (getVideoId(player.getVideoUrl()) != newState.videoId)
+            {
+                console.log('loadVideoById ' + newState.videoId)
+                player.loadVideoById(newState.videoId, newState.currentTime);
+            }
+            if (player.getPlaybackRate() != newState.playbackRate)
+            {
+                console.log('setPlaybackRate ' + newState.playbackRate)
+                player.setPlaybackRate(newState.playbackRate);
+            }
+            const kTimeDiffThreshold = 3.0;
+            if (Math.abs(player.getCurrentTime() - newState.currentTime) >
+                kTimeDiffThreshold)
+            {
+                console.log('seekTo ' + newState.currentTime);
+                player.seekTo(newState.currentTime, true);
+            }
+            if (player.getPlayerState() != newState.playerState)
+            {
+                if (newState.playerState == 1)
+                {
+                    console.log('playVideo');
+                    player.playVideo();
+                }
+                else if (newState.playerState == 2)
+                {
+                    console.log('pauseVideo');
+                    player.pauseVideo();
+                }
+            }
+        }
+
+        function loadVideo()
+        {
+            const videoUrl = document.getElementById('video-url').value;
+            const videoId = getVideoId(videoUrl);
+            player.loadVideoById(videoId);
+        }
+
+        function onStateChange()
+        {
+            const newState = state();
+            const playerState = newState.playerState;
+            if (playerState != 1 && playerState != 2) return;
+            if (stateEquals(getAdjustedState(lastSharedState,
+                    lastSharedStateTimestamp), newState)) return;
+            lastSharedState = newState;
+            lastSharedStateTimestamp = new Date();
+            console.log("Sending state to server:");
+            console.log(newState);
+            socket.emit('stateUpdate', newState);
+        }
+
+        socket.on('stateUpdate', function(msg)
+        {
+            console.log("State received from server:");
+            console.log(msg);
+            lastSharedState = msg;
+            lastSharedStateTimestamp = new Date();
+            loadState(lastSharedState);
+        });
+
+        socket.on('namesUpdate', function(msg)
+        {
+            console.log("names received from server:");
+            console.log(msg);
+
+            var newTbody = document.createElement('tbody');
+
+            msg.forEach((d, i) =>
+            {
+                var tr = newTbody.insertRow(i);
+                var cell = tr.insertCell(0);
+                cell.innerHTML = d;
+                newTbody.appendChild(tr);
+            })
+
+            var namesTbody = document.querySelector("#names tbody");
+            namesTbody.parentNode.replaceChild(newTbody, namesTbody);
+        });
+
+        function updateName()
+        {
+            const name = document.getElementById('name').value;
+            socket.emit('nameUpdate', name);
+        }
+
+        // 4. The API will call this function when the video player is ready.
+        function onPlayerReady(event)
+        {
+            socket.emit('join', room);
+        }
+    </script>
+</body>
+
+</html>

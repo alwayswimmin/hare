@@ -19,8 +19,12 @@ nunjucks.configure(path.join(__dirname, 'views'), {
 
 // app
 
+app.get('/', function(req, res) {
+    res.render('index.html');
+});
+
 app.get('/room/:roomId', function(req, res) {
-    res.render('index.html', {
+    res.render('room.html', {
         roomId: req.params.roomId
     });
 });
