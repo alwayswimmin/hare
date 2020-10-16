@@ -99,7 +99,10 @@
                 <table class="table table-responsive" id="queue">
                     <thead>
                         <tr>
-                            <th>Video Queue</th>
+                            <th>#</th>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Delete</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -160,11 +163,7 @@
             for (var i = 1, row; row = table.rows[i]; i++) {
                //iterate through rows
                //rows would be accessed using the "row" variable assigned in the for loop
-               for (var j = 0, col; col = row.cells[j]; j++) {
-                 //iterate through columns
-                 //columns would be accessed using the "col" variable assigned in the for loop
-                 queue.push(col.innerHTML);
-               }  
+               queue.push(row.cells[1].innerHTML);
             }
             return queue;
         }
@@ -196,6 +195,13 @@
             return false;
         }
 
+        function uuidv4() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
         function updateQueue(queue)
         {
             console.log('updateQueue');
@@ -208,9 +214,16 @@
             queue.forEach((d, i) =>
             {
                 var tr = newTbody.insertRow(i);
-                tr.id = i;
-                var cell = tr.insertCell(0);
-                cell.innerHTML = d;
+                tr.id = i + 1;
+                tr.insertCell(0).innerHTML = i + 1;
+                tr.insertCell(1).innerHTML = d;
+                var requestId = uuidv4();
+                tr.insertCell(2).id = requestId;
+                tr.insertCell(3).innerHTML = '<button class="btn btn-outline-danger my-2 my-sm-0" onclick="deleteRow(this)">x</button>';
+                socket.emit('titleQuery', {
+                    'requestId': requestId,
+                    'videoId': d,
+                });
                 newTbody.appendChild(tr);
             });
 
@@ -220,6 +233,13 @@
             $("#queue").tableDnDUpdate();
 
             return ret;
+        }
+
+        function deleteRow(row)
+        {
+            var d = row.parentNode.parentNode.rowIndex; 
+            document.getElementById('queue').deleteRow(d);
+            updateQueue(getQueue());
         }
 
         function arrayEquals(lhs, rhs)
@@ -356,6 +376,13 @@
 
             var namesTbody = document.querySelector("#names tbody");
             namesTbody.parentNode.replaceChild(newTbody, namesTbody);
+        });
+
+        socket.on('titleResult', function(msg)
+        {
+            console.log("title result received from server:");
+            console.log(msg);
+            document.getElementById(msg['requestId']).innerHTML = msg['videoTitle'];
         });
 
         function updateName()

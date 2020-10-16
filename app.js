@@ -2,6 +2,8 @@ var path = require('path');
 var nunjucks = require('nunjucks');
 var express = require('express');
 var app = express();
+const fetch = require('node-fetch');
+const zlib = require('zlib');
 
 const PORT = process.env.PORT || 5000;
 var http = require('http').Server(app);
@@ -119,6 +121,23 @@ io.on('connection', function(socket) {
         var roomNames = names.get(room);
         roomNames.set(socket.id, msg);
         io.to(room).emit('namesUpdate', getValues(roomNames));
+    });
+    socket.on('titleQuery', function(msg) {
+        console.log(socket.id + ' titleQuery: ' + msg);
+        fetch("https://youtube.com/get_video_info?video_id=" + msg['videoId'])
+            .then(function (response) {
+                return response.blob();
+            }).then(function (blob) {
+                return blob.text();
+            }).then(function (text) {
+                const params = new URLSearchParams(text);
+                const json = JSON.parse(params.get("player_response"));
+                socket.emit('titleResult', {
+                    'requestId': msg['requestId'],
+                    'videoId': msg['videoId'],
+                    'videoTitle': json["videoDetails"]["title"],
+                });
+            }).catch(function (error) { console.log(error); });
     });
 });
 
