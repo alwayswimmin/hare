@@ -41,6 +41,7 @@
 
 <body>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/TableDnD/0.9.1/jquery.tablednd.js" integrity="sha256-d3rtug+Hg1GZPB7Y/yTcRixO/wlI78+2m08tosoRn7A=" crossorigin="anonymous"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
         integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
         crossorigin="anonymous"></script>
@@ -68,16 +69,16 @@
 
         <div class="row justify-content-center">
             <div class="col-auto">
-                <form class="form-inline" onsubmit="loadVideo(); return false;">
-                    <input class="form-control mr-sm-2" type="text" id="video-url" placeholder="Video URL" aria-label="Video URL">
-                    <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Load</button>
+                <form class="form-inline" onsubmit="updateName(); return false;">
+                    <input class="form-control mr-sm-2" type="text" id="name" placeholder="Name" aria-label="Name">
+                    <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Update</button>
                 </form>
             </div>
 
             <div class="col-auto">
-                <form class="form-inline" onsubmit="updateName(); return false;">
-                    <input class="form-control mr-sm-2" type="text" id="name" placeholder="Name" aria-label="Name">
-                    <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Update</button>
+                <form class="form-inline" onsubmit="loadVideo(); return false;">
+                    <input class="form-control mr-sm-2" type="text" id="video-url" placeholder="Video URL" aria-label="Video URL">
+                    <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Queue</button>
                 </form>
             </div>
         </div>
@@ -88,6 +89,17 @@
                     <thead>
                         <tr>
                             <th>Room Members</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <div class="col-auto">
+                <table class="table table-responsive" id="queue">
+                    <thead>
+                        <tr>
+                            <th>Video Queue</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -136,8 +148,25 @@
 
         function getVideoId(urlString)
         {
+            if (!urlString) return '';
             const url = new URL(urlString);
             return url.searchParams.get('v');
+        }
+
+        function getQueue()
+        {
+            var table = document.getElementById("queue");
+            var queue = [];
+            for (var i = 1, row; row = table.rows[i]; i++) {
+               //iterate through rows
+               //rows would be accessed using the "row" variable assigned in the for loop
+               for (var j = 0, col; col = row.cells[j]; j++) {
+                 //iterate through columns
+                 //columns would be accessed using the "col" variable assigned in the for loop
+                 queue.push(col.innerHTML);
+               }  
+            }
+            return queue;
         }
 
         function state()
@@ -147,7 +176,60 @@
                 'playerState': player.getPlayerState(),
                 'playbackRate': player.getPlaybackRate(),
                 'currentTime': player.getCurrentTime(),
+                'queue': getQueue(),
             };
+        }
+
+        function videoDone()
+        {
+            const playerState = player.getPlayerState();
+            return playerState == -1 || playerState == 0 || playerState == 5;
+        }
+
+        function maybePopQueue(queue) {
+            const currentState = state();
+            if (videoDone() && queue.length > 0)
+            {
+                player.loadVideoById(queue.shift());
+                return true;
+            }
+            return false;
+        }
+
+        function updateQueue(queue)
+        {
+            console.log('updateQueue');
+            console.log(queue);
+            const ret = maybePopQueue(queue);
+
+            // Update the queue visual interface.
+            var newTbody = document.createElement('tbody');
+
+            queue.forEach((d, i) =>
+            {
+                var tr = newTbody.insertRow(i);
+                tr.id = i;
+                var cell = tr.insertCell(0);
+                cell.innerHTML = d;
+                newTbody.appendChild(tr);
+            });
+
+            var queueTbody = document.querySelector("#queue tbody");
+            queueTbody.parentNode.replaceChild(newTbody, queueTbody);
+
+            $("#queue").tableDnDUpdate();
+
+            return ret;
+        }
+
+        function arrayEquals(lhs, rhs)
+        {
+            if (lhs.length != rhs.length) return false;
+            for (var i = 0, l = lhs.length; i < l; i++) 
+            {
+                if (lhs[i] != rhs[i]) return false;
+            }
+            return true;
         }
 
         function stateEquals(lhs, rhs)
@@ -161,6 +243,7 @@
             if (Math.abs(lhs.currentTime - rhs.currentTime) >
                 kTimeDiffThreshold)
                 return false;
+            if (!arrayEquals(lhs.queue, rhs.queue)) return false;
             return true;
         }
 
@@ -173,32 +256,34 @@
                 'videoId': state.videoId,
                 'playerState': state.playerState,
                 'playbackRate': state.playbackRate,
-                'currentTime': state.currentTime + offset
+                'currentTime': state.currentTime + offset,
+                'queue': state.queue,
             };
         }
 
         // Loads the specified state into the player.
         function loadState(newState)
         {
-            if (!newState) return;
-            if (getVideoId(player.getVideoUrl()) != newState.videoId)
+            currentState = state();
+
+            if (currentState.videoId != newState.videoId)
             {
-                console.log('loadVideoById ' + newState.videoId)
+                console.log('loadVideoById ' + newState.videoId);
                 player.loadVideoById(newState.videoId, newState.currentTime);
             }
-            if (player.getPlaybackRate() != newState.playbackRate)
+            if (currentState.playbackRate != newState.playbackRate)
             {
                 console.log('setPlaybackRate ' + newState.playbackRate)
                 player.setPlaybackRate(newState.playbackRate);
             }
             const kTimeDiffThreshold = 3.0;
-            if (Math.abs(player.getCurrentTime() - newState.currentTime) >
+            if (Math.abs(currentState.currentTime - newState.currentTime) >
                 kTimeDiffThreshold)
             {
                 console.log('seekTo ' + newState.currentTime);
                 player.seekTo(newState.currentTime, true);
             }
-            if (player.getPlayerState() != newState.playerState)
+            if (currentState.playerState != newState.playerState)
             {
                 if (newState.playerState == 1)
                 {
@@ -211,22 +296,33 @@
                     player.pauseVideo();
                 }
             }
+            if (!arrayEquals(currentState.queue, newState.queue))
+            {
+                updateQueue(newState.queue);
+            }
         }
 
         function loadVideo()
         {
             const videoUrl = document.getElementById('video-url').value;
             const videoId = getVideoId(videoUrl);
-            player.loadVideoById(videoId);
+            var queue = getQueue();
+            queue.push(videoId);
+            updateQueue(queue);
+            onStateChange();
         }
 
         function onStateChange()
         {
+            console.log('Local state updated.');
+
             const newState = state();
-            const playerState = newState.playerState;
-            if (playerState != 1 && playerState != 2) return;
-            if (stateEquals(getAdjustedState(lastSharedState,
-                    lastSharedStateTimestamp), newState)) return;
+            if (updateQueue(newState.queue))
+            {
+                return;
+            }
+            // if (stateEquals(getAdjustedState(lastSharedState,
+            //         lastSharedStateTimestamp), newState)) return;
             lastSharedState = newState;
             lastSharedStateTimestamp = new Date();
             console.log("Sending state to server:");
@@ -273,6 +369,17 @@
         {
             socket.emit('join', room);
         }
+
+        $(document).ready(function() {
+            // Initialize table drag and drop.
+            $("#queue").tableDnD({
+                onDrop: function(table, row)
+                {
+                    console.log("Table updated.");
+                    onStateChange();
+                }            
+            });
+        });
     </script>
 </body>
 

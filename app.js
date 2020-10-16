@@ -33,16 +33,39 @@ var state = new Map();
 var timestamp = new Map();
 var names = new Map();
 
+function has(room) {
+    return state.has(room);
+}
+
+function initialize(room) {
+    state.set(room, {
+        'videoId': '',
+        'playerState': 0,
+        'playbackRate': 1.0,
+        'currentTime': 0.0,
+        'queue': [],
+    });
+    timestamp.set(room, new Date());
+    names.set(room, new Map());
+}
+
+function clear(room) {
+    state.delete(room);
+    timestamp.delete(room);
+    names.delete(room);
+}
+
 function getAdjustedState(room) {
     const snapshot = state.get(room);
-    if (!snapshot || snapshot.playerState != 1) return snapshot;
+    if (snapshot.playerState != 1) return snapshot;
     const offset = snapshot.playbackRate * ((new Date()).getTime() -
         timestamp.get(room).getTime()) / 1000.0;
     return {
         'videoId': snapshot.videoId,
         'playerState': snapshot.playerState,
         'playbackRate': snapshot.playbackRate,
-        'currentTime': snapshot.currentTime + offset
+        'currentTime': snapshot.currentTime + offset,
+        'queue': snapshot.queue,
     };
 }
 
@@ -62,13 +85,10 @@ io.on('connection', function(socket) {
         console.log(socket.id + ' join:');
         console.log(msg);
         room = msg;
+        if (!has(room)) initialize(room);
         socket.join(room);
         socket.emit('stateUpdate', getAdjustedState(room));
         var roomNames = names.get(room);
-        if (!roomNames) {
-            roomNames = new Map();
-            names.set(room, roomNames);
-        }
         roomNames.set(socket.id, 'Anonymous');
         io.to(room).emit('namesUpdate', getValues(roomNames));
         heartbeat = setInterval(() => {
@@ -78,9 +98,12 @@ io.on('connection', function(socket) {
     socket.on('disconnect', () => {
         console.log(socket.id + ' disconnect');
         clearInterval(heartbeat);
+        if (!has(room)) return;
         var roomNames = names.get(room);
-        if (roomNames) {
-            roomNames.delete(socket.id);
+        roomNames.delete(socket.id);
+        if (roomNames.size == 0) {
+            clear(room);
+        } else {
             io.to(room).emit('namesUpdate', getValues(names.get(room)));
         }
     });
@@ -89,7 +112,7 @@ io.on('connection', function(socket) {
         console.log(msg);
         state.set(room, msg);
         timestamp.set(room, new Date());
-        socket.to(room).emit('stateUpdate', msg);
+        socket.to(room).emit('stateUpdate', state.get(room));
     });
     socket.on('nameUpdate', function(msg) {
         console.log(socket.id + ' nameUpdate: ' + msg);
