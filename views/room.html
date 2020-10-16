@@ -161,8 +161,6 @@
             var table = document.getElementById("queue");
             var queue = [];
             for (var i = 1, row; row = table.rows[i]; i++) {
-               //iterate through rows
-               //rows would be accessed using the "row" variable assigned in the for loop
                queue.push(row.cells[1].innerHTML);
             }
             return queue;
@@ -179,15 +177,26 @@
             };
         }
 
-        function videoDone()
+        function videoPartialLoad(state)
         {
-            const playerState = player.getPlayerState();
-            return playerState == -1 || playerState == 0 || playerState == 5;
+            console.log("videoPartialLoad?");
+            console.log(state);
+            if (state.playerState == "undefined") return true;
+            if (state.playerState != 2 && state.currentTime == 0) return true;
+            return false;
+        }
+
+        function videoDone(state)
+        {
+            console.log("videoDone?");
+            console.log(state);
+            return (!state.videoId && state.playerState == -1) || 
+                (state.currentTime != 0 && state.playerState == 0);
         }
 
         function maybePopQueue(queue) {
             const currentState = state();
-            if (videoDone() && queue.length > 0)
+            if (videoDone(currentState) && queue.length > 0)
             {
                 player.loadVideoById(queue.shift());
                 return true;
@@ -201,6 +210,8 @@
                 return v.toString(16);
             });
         }
+
+        var titleCache = new Map();
 
         function updateQueue(queue)
         {
@@ -217,13 +228,17 @@
                 tr.id = i + 1;
                 tr.insertCell(0).innerHTML = i + 1;
                 tr.insertCell(1).innerHTML = d;
-                var requestId = uuidv4();
-                tr.insertCell(2).id = requestId;
+                var titleCell = tr.insertCell(2);
                 tr.insertCell(3).innerHTML = '<button class="btn btn-outline-danger my-2 my-sm-0" onclick="deleteRow(this)">x</button>';
-                socket.emit('titleQuery', {
-                    'requestId': requestId,
-                    'videoId': d,
-                });
+
+                if (titleCache.has(d))
+                {
+                    titleCell.innerHTML = titleCache.get(d);
+                }
+                else
+                {
+                    socket.emit('titleQuery', d);
+                }
                 newTbody.appendChild(tr);
             });
 
@@ -281,45 +296,59 @@
             };
         }
 
-        // Loads the specified state into the player.
-        function loadState(newState)
+        var shouldBroadcast = false;
+
+        // Loads the specified state into the player. Returns true if any state component needed updating.
+        function loadState()
         {
+            var ret = false;
+
+            const newState = getAdjustedState(lastSharedState, lastSharedStateTimestamp);
+            if (!newState) return true;
             currentState = state();
 
             if (currentState.videoId != newState.videoId)
             {
                 console.log('loadVideoById ' + newState.videoId);
                 player.loadVideoById(newState.videoId, newState.currentTime);
+                ret = true;
             }
             if (currentState.playbackRate != newState.playbackRate)
             {
                 console.log('setPlaybackRate ' + newState.playbackRate)
                 player.setPlaybackRate(newState.playbackRate);
+                ret = true;
             }
             const kTimeDiffThreshold = 3.0;
-            if (Math.abs(currentState.currentTime - newState.currentTime) >
-                kTimeDiffThreshold)
+            const needToSeek = Math.abs(currentState.currentTime - newState.currentTime) > kTimeDiffThreshold;
+            if (needToSeek)
             {
                 console.log('seekTo ' + newState.currentTime);
                 player.seekTo(newState.currentTime, true);
+                ret = true;
             }
-            if (currentState.playerState != newState.playerState)
+            if (needToSeek || currentState.playerState != newState.playerState)
             {
                 if (newState.playerState == 1)
                 {
                     console.log('playVideo');
                     player.playVideo();
+                    ret = true;
                 }
                 else if (newState.playerState == 2)
                 {
                     console.log('pauseVideo');
                     player.pauseVideo();
+                    ret = true;
                 }
             }
             if (!arrayEquals(currentState.queue, newState.queue))
             {
                 updateQueue(newState.queue);
+                ret = true;
             }
+
+            return ret;
         }
 
         function loadVideo()
@@ -329,6 +358,7 @@
             var queue = getQueue();
             queue.push(videoId);
             updateQueue(queue);
+            shouldBroadcast = true;
             onStateChange();
         }
 
@@ -337,15 +367,16 @@
             console.log('Local state updated.');
 
             const newState = state();
-            if (updateQueue(newState.queue))
-            {
-                return;
-            }
-            // if (stateEquals(getAdjustedState(lastSharedState,
-            //         lastSharedStateTimestamp), newState)) return;
+            if (updateQueue(newState.queue)) return;
+            if (stateEquals(getAdjustedState(lastSharedState,
+                    lastSharedStateTimestamp), newState)) return;
+            if (videoPartialLoad(newState)) return;
+
+            if (!shouldBroadcast) return;
+
+            console.log("Sending state to server:");
             lastSharedState = newState;
             lastSharedStateTimestamp = new Date();
-            console.log("Sending state to server:");
             console.log(newState);
             socket.emit('stateUpdate', newState);
         }
@@ -356,7 +387,7 @@
             console.log(msg);
             lastSharedState = msg;
             lastSharedStateTimestamp = new Date();
-            loadState(lastSharedState);
+            loadState();
         });
 
         socket.on('namesUpdate', function(msg)
@@ -382,7 +413,18 @@
         {
             console.log("title result received from server:");
             console.log(msg);
-            document.getElementById(msg['requestId']).innerHTML = msg['videoTitle'];
+            titleCache.set(msg.videoId, msg.videoTitle);
+            var table = document.getElementById("queue");
+            for (var i = 1, row; row = table.rows[i]; i++) {
+               //iterate through rows
+               if (row.cells[1].innerHTML == msg.videoId)
+               {
+                   if (row.cells[2].innerHTML != msg.videoTitle)
+                   {
+                       row.cells[2].innerHTML = msg.videoTitle;
+                   }
+               }
+            }
         });
 
         function updateName()
@@ -395,6 +437,13 @@
         function onPlayerReady(event)
         {
             socket.emit('join', room);
+            // Continually try loading state until nothing updates.
+            var initialLoad = setInterval(function() {
+                if (loadState()) return;
+                console.log("Fully initialized.");
+                shouldBroadcast = true;
+                clearInterval(initialLoad);
+            }, 5000);
         }
 
         $(document).ready(function() {

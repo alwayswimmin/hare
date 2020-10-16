@@ -112,6 +112,22 @@ io.on('connection', function(socket) {
     socket.on('stateUpdate', function(msg) {
         console.log(socket.id + ' stateUpdate:');
         console.log(msg);
+        // Clean the input player state.
+        switch (msg.playerState)
+        {
+            case -1:
+            case 1:
+            case 3:
+                // Set buffering and unstarted to play.
+                msg.playerState = 1;
+                break;
+            case 2:
+                break;
+            case 0:
+            case 5:
+            default:
+                return;
+        }
         state.set(room, msg);
         timestamp.set(room, new Date());
         socket.to(room).emit('stateUpdate', state.get(room));
@@ -124,7 +140,7 @@ io.on('connection', function(socket) {
     });
     socket.on('titleQuery', function(msg) {
         console.log(socket.id + ' titleQuery: ' + msg);
-        fetch("https://youtube.com/get_video_info?video_id=" + msg['videoId'])
+        fetch("https://youtube.com/get_video_info?video_id=" + msg)
             .then(function (response) {
                 return response.blob();
             }).then(function (blob) {
@@ -133,8 +149,7 @@ io.on('connection', function(socket) {
                 const params = new URLSearchParams(text);
                 const json = JSON.parse(params.get("player_response"));
                 socket.emit('titleResult', {
-                    'requestId': msg['requestId'],
-                    'videoId': msg['videoId'],
+                    'videoId': msg,
                     'videoTitle': json["videoDetails"]["title"],
                 });
             }).catch(function (error) { console.log(error); });
